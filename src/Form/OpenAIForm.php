@@ -6,6 +6,9 @@ use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\openai_integration\Service\OpenAIService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Drupal\Core\Ajax\AjaxResponse;
+use Drupal\Core\Ajax\ReplaceCommand;
+use Drupal\Core\Ajax\InvokeCommand;
 
 class OpenAIForm extends FormBase {
     protected $openAIService;
@@ -101,7 +104,11 @@ class OpenAIForm extends FormBase {
         $conversation = $this->openAIService->getConversationHistoryForForm();
         $form['conversation']['#markup'] = $this->buildConversationMarkup($conversation);
 
-        return $form['conversation'];
+        $response = new AjaxResponse();
+        $response->addCommand(new ReplaceCommand('#conversation-wrapper', $form['conversation']['#markup']));
+        $response->addCommand(new InvokeCommand('#openai-integration-form input[name="prompt"]', 'val', ['']));
+
+        return $response;
     }
 
     public function ajaxClearContext(array &$form, FormStateInterface $form_state) {
@@ -109,8 +116,13 @@ class OpenAIForm extends FormBase {
         $this->messenger()->addMessage($this->t('Conversation context has been cleared.'));
 
         $form['conversation']['#markup'] = $this->buildConversationMarkup([]);
+        $form['prompt']['#value'] = '';
 
-        return $form['conversation'];
+        $response = new AjaxResponse();
+        $response->addCommand(new ReplaceCommand('#conversation-wrapper', $form['conversation']['#markup']));
+        $response->addCommand(new InvokeCommand('#openai-integration-form input[name="prompt"]', 'val', ['']));
+
+        return $response;
     }
 
     public function submitForm(array &$form, FormStateInterface $form_state) {
