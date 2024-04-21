@@ -1,3 +1,7 @@
+# filename: openai_integration.routing.yml
+# define the routes for the module
+
+
 openai_integration.form:
   path: '/openai'
   defaults:

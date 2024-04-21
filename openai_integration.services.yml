@@ -1,3 +1,6 @@
+# filename: openai_integration.services.yml
+# define services for the module.
+
 services:
   openai_integration.openai_service:
     class: Drupal\openai_integration\Service\OpenAIService
