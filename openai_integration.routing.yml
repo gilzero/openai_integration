@@ -1,0 +1,7 @@
+openai_integration.form:
+  path: '/openai'
+  defaults:
+    _form: '\Drupal\openai_integration\Form\OpenAIForm'
+    _title: 'OpenAI Form'
+  requirements:
+    _permission: 'access content'

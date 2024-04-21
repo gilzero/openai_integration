@@ -1,0 +1,7 @@
+.conversation {
+    background-color: #f4f4f4;
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin-bottom: 20px;
+    white-space: pre-wrap;
+}

@@ -1,0 +1,5 @@
+name: 'OpenAI Integration'
+type: module
+description: 'A module to integrate OpenAI GPT-3.5-Turbo API.'
+core_version_requirement: ^10
+package: Custom
