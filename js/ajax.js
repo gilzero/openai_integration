@@ -7,6 +7,9 @@
                 if (settings.extraData && settings.extraData.indexOf('openai_integration_form') !== -1) {
                     var $conversationWrapper = $('#conversation-wrapper');
                     $conversationWrapper.scrollTop($conversationWrapper[0].scrollHeight);
+
+                    // Reset the input field
+                    $('#openai-integration-form input[name="prompt"]').val('');
                 }
             });
         }
