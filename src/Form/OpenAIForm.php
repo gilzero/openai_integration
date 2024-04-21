@@ -1,7 +1,7 @@
 <?php
 // filename: src/Form/OpenAIForm.php
 namespace Drupal\openai_integration\Form;
-
+use Drupal\Core\Ajax\MessageCommand;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\openai_integration\Service\OpenAIService;
@@ -91,11 +91,11 @@ class OpenAIForm extends FormBase {
 
         try {
             $response = $this->openAIService->generateResponse($prompt);
-            $this->messenger()->addMessage($this->t('OpenAI response: @response', ['@response' => $response]));
+            $message = $this->t('OpenAI response: @response', ['@response' => $response]);
         }
         catch (\Exception $e) {
             // Handle exceptions (e.g., log the error, display a user-friendly message)
-            $this->messenger()->addError($this->t('An error occurred while processing your request.'));
+            $message = $this->t('An error occurred while processing your request.');
         }
 
         // Reset the user input for the 'prompt' field
@@ -107,13 +107,14 @@ class OpenAIForm extends FormBase {
         $response = new AjaxResponse();
         $response->addCommand(new ReplaceCommand('#conversation-wrapper', $form['conversation']['#markup']));
         $response->addCommand(new InvokeCommand('#openai-integration-form input[name="prompt"]', 'val', ['']));
+        $response->addCommand(new MessageCommand($message));
 
         return $response;
     }
 
     public function ajaxClearContext(array &$form, FormStateInterface $form_state) {
         $this->openAIService->clearConversationHistory();
-        $this->messenger()->addMessage($this->t('Conversation context has been cleared.'));
+        $message = $this->t('Conversation context has been cleared.');
 
         $form['conversation']['#markup'] = $this->buildConversationMarkup([]);
         $form['prompt']['#value'] = '';
@@ -121,6 +122,7 @@ class OpenAIForm extends FormBase {
         $response = new AjaxResponse();
         $response->addCommand(new ReplaceCommand('#conversation-wrapper', $form['conversation']['#markup']));
         $response->addCommand(new InvokeCommand('#openai-integration-form input[name="prompt"]', 'val', ['']));
+        $response->addCommand(new MessageCommand($message));
 
         return $response;
     }
