@@ -38,30 +38,32 @@ class OpenAIForm extends FormBase {
         ];
 
         $form['prompt'] = [
-            '#type' => 'textarea',
+            '#type' => 'textfield',
             '#title' => $this->t('Prompt'),
             '#description' => $this->t('Please type your prompt to OpenAI.'),
             '#required' => TRUE,
         ];
 
-        $form['submit'] = [
+        $form['actions'] = [
+            '#type' => 'actions',
+        ];
+
+        $form['actions']['submit'] = [
             '#type' => 'submit',
             '#value' => $this->t('Submit'),
             '#ajax' => [
-                'callback' => '::submitFormAjax',
+                'callback' => '::ajaxSubmit',
                 'wrapper' => 'conversation-wrapper',
-                'effect' => 'fade',
             ],
         ];
 
-        $form['clear_context'] = [
+        $form['actions']['clear_context'] = [
             '#type' => 'submit',
             '#value' => $this->t('Clear Context'),
-            '#submit' => ['::clearContextSubmit'],
+            '#submit' => ['::clearContext'],
             '#ajax' => [
-                'callback' => '::clearContextAjax',
+                'callback' => '::ajaxClearContext',
                 'wrapper' => 'conversation-wrapper',
-                'effect' => 'fade',
             ],
         ];
 
@@ -81,7 +83,7 @@ class OpenAIForm extends FormBase {
             ) . '</div>';
     }
 
-    public function submitFormAjax(array &$form, FormStateInterface $form_state) {
+    public function ajaxSubmit(array &$form, FormStateInterface $form_state) {
         $prompt = $form_state->getValue('prompt');
 
         try {
@@ -94,9 +96,7 @@ class OpenAIForm extends FormBase {
         }
 
         // Reset the user input for the 'prompt' field
-        $user_input = $form_state->getUserInput();
-        $user_input['prompt'] = '';
-        $form_state->setUserInput($user_input);
+        $form['prompt']['#value'] = '';
 
         $conversation = $this->openAIService->getConversationHistoryForForm();
         $form['conversation']['#markup'] = $this->buildConversationMarkup($conversation);
@@ -104,7 +104,7 @@ class OpenAIForm extends FormBase {
         return $form['conversation'];
     }
 
-    public function clearContextAjax(array &$form, FormStateInterface $form_state) {
+    public function ajaxClearContext(array &$form, FormStateInterface $form_state) {
         $this->openAIService->clearConversationHistory();
         $this->messenger()->addMessage($this->t('Conversation context has been cleared.'));
 
@@ -117,7 +117,7 @@ class OpenAIForm extends FormBase {
         // No need to implement this method as we're using AJAX submission
     }
 
-    public function clearContextSubmit(array &$form, FormStateInterface $form_state) {
+    public function clearContext(array &$form, FormStateInterface $form_state) {
         // No need to implement this method as we're using AJAX submission
     }
 }
