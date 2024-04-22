@@ -1,5 +1,5 @@
 <?php
-
+// src/Form/ConfigForm.php
 namespace Drupal\openai_integration\Form;
 
 use Drupal\Core\Form\ConfigFormBase;

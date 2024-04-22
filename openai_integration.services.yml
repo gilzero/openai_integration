@@ -1,3 +1,4 @@
+# openai_integration.services.yml
 services:
   # Service definition for the OpenAI API client
   openai_integration.openai_api_client:
@@ -9,7 +10,7 @@ services:
   # Service definition for the OpenAI service
   openai_integration.openai_service:
     class: Drupal\openai_integration\Service\OpenAIService
-    arguments: ['@openai_integration.openai_api_client', '@session', '@logger.factory', '@config.factory']
+    arguments: ['@openai_integration.openai_api_client', '@session', '@logger.factory', '@config.factory', '@messenger']
 
   # Definition of the logger for the OpenAI module
   openai_integration.logger:

@@ -1,3 +1,4 @@
+# openai_integration.permissions.yml
 access openai chatbot:
   title: 'Access OpenAI Chatbot'
   description: 'Allows access to the OpenAI chatbot form.'

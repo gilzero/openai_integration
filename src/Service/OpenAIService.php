@@ -1,82 +1,82 @@
 <?php
 // src/Service/OpenAIService.php
+
 namespace Drupal\openai_integration\Service;
 
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Messenger\MessengerInterface;
+use Drupal\openai_integration\Service\OpenAIAPIClient;
 
 class OpenAIService {
     protected $apiClient;
     protected $session;
     protected $logger;
     protected $configFactory;
+    protected $messenger;
 
-    /**
-     * Constructs an OpenAIService object.
-     *
-     * @param OpenAIAPIClient $apiClient The API client to interact with OpenAI.
-     * @param SessionInterface $session The session to store conversation histories.
-     * @param LoggerChannelFactoryInterface $loggerFactory The logger factory.
-     * @param ConfigFactoryInterface $configFactory The configuration factory.
-     */
-    public function __construct(OpenAIAPIClient $apiClient, SessionInterface $session, LoggerChannelFactoryInterface $loggerFactory, ConfigFactoryInterface $configFactory) {
+    const MAX_PROMPT_LENGTH = 4096; // Example limit, specify based on actual API constraints
+
+    public function __construct(OpenAIAPIClient $apiClient, SessionInterface $session, LoggerChannelFactoryInterface $loggerFactory, ConfigFactoryInterface $configFactory, MessengerInterface $messenger) {
         $this->apiClient = $apiClient;
         $this->session = $session;
         $this->logger = $loggerFactory->get('openai_integration');
         $this->configFactory = $configFactory;
+        $this->messenger = $messenger;
     }
 
-    /**
-     * Generate a response from OpenAI based on the user's input prompt.
-     *
-     * @param string $prompt The user's input prompt.
-     * @return string The response text from OpenAI.
-     */
     public function generateResponse($prompt) {
         $promptCleaned = htmlspecialchars($prompt, ENT_QUOTES, 'UTF-8');
+        
+        if (strlen($promptCleaned) > self::MAX_PROMPT_LENGTH) {
+            $this->messenger->addError('The prompt is too long. Please reduce the length and try again.');
+            return null;
+        }
+
         $conversationHistory = $this->getConversationHistory();
+        $this->addSystemPrompt($conversationHistory);
         $conversationHistory[] = ['role' => 'user', 'content' => $promptCleaned];
 
         $model = $this->configFactory->get('openai_integration.settings')->get('model_name');
-        $payload = [
-            'model' => $model,
-            'messages' => $conversationHistory,
-        ];
-
+        
         try {
-            $responseData = $this->apiClient->sendRequest('/chat/completions', $payload);
-            $responseText = $responseData['choices'][0]['message']['content'] ?? 'No response content available.';
-
-            $conversationHistory[] = ['role' => 'assistant', 'content' => $responseText];
-            $this->saveConversationHistory($conversationHistory);
-
-            return $responseText;
+            return $this->processResponse($model, $conversationHistory);
         } catch (\Exception $e) {
-            $this->logger->error('Failed to generate response from OpenAI: @error', ['@error' => $e->getMessage()]);
-            throw $e; // Rethrow the exception for handling upstream.
+            $this->handleResponseError($e);
         }
     }
 
-    /**
-     * Retrieves the stored conversation history from the session.
-     */
     public function getConversationHistory() {
-        return $this->session->get('openai_conversation', []);
+        return $this->session->get('conversation_history', []);
     }
 
-    /**
-     * Saves the given conversation history into the session.
-     */
-    protected function saveConversationHistory(array $conversation) {
-        $this->session->set('openai_conversation', $conversation);
+    public function saveConversationHistory(array $history) {
+        $this->session->set('conversation_history', $history);
     }
 
-    /**
-     * Clears the stored conversation history from the session.
-     */
-    public function clearConversationHistory() {
-        $this->session->remove('openai_conversation');
+    private function addSystemPrompt(&$conversationHistory) {
+        $systemPrompt = $this->configFactory->get('openai_integration.settings')->get('system_prompt');
+        if (!empty($systemPrompt)) {
+            $conversationHistory[] = ['role' => 'system', 'content' => $systemPrompt];
+        }
+    }
+
+    private function processResponse($model, $conversationHistory) {
+        $responseData = $this->apiClient->sendRequest('/chat/completions', [
+            'model' => $model,
+            'messages' => $conversationHistory,
+        ]);
+
+        $responseText = $responseData['choices'][0]['message']['content'] ?? 'No response content available.';
+        $conversationHistory[] = ['role' => 'assistant', 'content' => $responseText];
+        $this->saveConversationHistory($conversationHistory);
+        return $responseText;
+    }
+
+    private function handleResponseError(\Exception $e) {
+        $this->logger->error('Failed to generate response from model: @error', ['@error' => $e->getMessage()]);
+        $this->messenger->addError('Sorry, an error occurred while processing your request. Please try again.');
     }
 
     /**
