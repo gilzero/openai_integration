@@ -1,4 +1,7 @@
 services:
   openai_integration.openai_service:
     class: Drupal\openai_integration\Service\OpenAIService
-    arguments: ['@http_client', '@session']
+    arguments:
+      - '@http_client'
+      - '@session'
+      - '@config.factory'
