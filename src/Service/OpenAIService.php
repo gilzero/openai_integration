@@ -1,9 +1,5 @@
 <?php
-<<<<<<< HEAD
-// filename: src/Service/OpenAIService.php
-=======
 
->>>>>>> HEAD@{1}
 namespace Drupal\openai_integration\Service;
 
 use GuzzleHttp\ClientInterface;
@@ -19,41 +15,25 @@ class OpenAIService {
     }
 
     public function generateResponse($prompt) {
-<<<<<<< HEAD
-        $conversationHistory = $this->getConversationHistory();
-        $conversationHistory[] = ['role' => 'user', 'content' => $prompt];
-
-        $response = $this->httpClient->request('POST', 'https://api.openai.com/v1/chat/completions', [
-            'headers' => [
-                'Authorization' => 'Bearer ' . getenv('OPENAI_API_KEY'),
-                'Content-Type' => 'application/json',
-            ],
-            'json' => [
-                'model' => 'gpt-3.5-turbo',
-                'messages' => $conversationHistory,
-            ],
-        ]);
-
-        $responseData = json_decode($response->getBody()->getContents(), true);
-        $assistantResponse = $responseData['choices'][0]['message']['content'];
-        $conversationHistory[] = ['role' => 'assistant', 'content' => $assistantResponse];
-        $this->saveConversationHistory($conversationHistory);
-
-=======
         $config = \Drupal::config('openai_integration.settings');
         $apiKey = $config->get('openai_api_key');
         $modelName = $config->get('model_name');
         $systemPrompt = $config->get('system_prompt');
-    
+
         $conversationHistory = $this->getConversationHistory();
-    
+
+        // Debug: Log the conversation history for anonymous users
+        if (\Drupal::currentUser()->isAnonymous()) {
+            \Drupal::logger('openai_integration')->notice('Conversation history for anonymous user: ' . print_r($conversationHistory, TRUE));
+        }
+
         // Add system prompt as first message if it exists
         if (!empty($systemPrompt)) {
             array_unshift($conversationHistory, ['role' => 'system', 'content' => $systemPrompt]);
         }
-    
+
         $conversationHistory[] = ['role' => 'user', 'content' => $prompt];
-    
+
         $response = $this->httpClient->request('POST', 'https://api.openai.com/v1/chat/completions', [
             'headers' => [
                 'Authorization' => 'Bearer ' . $apiKey,
@@ -64,21 +44,32 @@ class OpenAIService {
                 'messages' => $conversationHistory,
             ],
         ]);
-    
+
         $responseData = json_decode($response->getBody()->getContents(), true);
+
+        // Debug: Log the API response for anonymous users
+        if (\Drupal::currentUser()->isAnonymous()) {
+            \Drupal::logger('openai_integration')->notice('API response for anonymous user: ' . print_r($responseData, TRUE));
+        }
+
         $assistantResponse = $responseData['choices'][0]['message']['content'] ?? "Response error or not found.";
-        
+
         // Append the latest assistant answer to history, if applicable
         if (isset($responseData['choices'][0]['message'])) {
             $conversationHistory[] = ['role' => 'assistant', 'content' => $assistantResponse];
         }
-    
+
         $this->saveConversationHistory($conversationHistory);
->>>>>>> HEAD@{1}
+
         return $assistantResponse;
     }
 
     protected function getConversationHistory() {
+        // Debug: Log the conversation history retrieval for anonymous users
+        if (\Drupal::currentUser()->isAnonymous()) {
+            \Drupal::logger('openai_integration')->notice('Retrieving conversation history for anonymous user');
+        }
+
         return $this->session->get('openai_conversation', []);
     }
 
@@ -87,14 +78,20 @@ class OpenAIService {
     }
 
     protected function saveConversationHistory(array $conversation) {
+        // Debug: Log the conversation history saving for anonymous users
+        if (\Drupal::currentUser()->isAnonymous()) {
+            \Drupal::logger('openai_integration')->notice('Saving conversation history for anonymous user: ' . print_r($conversation, TRUE));
+        }
+
         $this->session->set('openai_conversation', $conversation);
     }
 
     public function clearConversationHistory() {
-<<<<<<< HEAD
+        // Debug: Log the conversation history clearing for anonymous users
+        if (\Drupal::currentUser()->isAnonymous()) {
+            \Drupal::logger('openai_integration')->notice('Clearing conversation history for anonymous user');
+        }
+
         $this->session->remove('openai_conversation');
-=======
-        $this->session->set('openai_conversation', []);
->>>>>>> HEAD@{1}
     }
 }
