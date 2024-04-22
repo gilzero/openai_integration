@@ -1,4 +1,7 @@
 <?php
+/*
+ * File: OpenAIService.php
+ */
 
 namespace Drupal\openai_integration\Service;
 
