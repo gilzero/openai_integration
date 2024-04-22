@@ -31,13 +31,18 @@ class OpenAIForm extends FormBase {
         $form['#attached']['library'][] = 'openai_integration/styles';
 
         $conversation = $this->openAIService->getConversationHistoryForForm();
-        $form['conversation'] = [
-            '#type' => 'markup',
-            '#markup' => $this->buildConversationMarkup($conversation),
-            '#allowed_tags' => ['div', 'br', 'strong'],
-            '#prefix' => '<div id="conversation-wrapper">',
-            '#suffix' => '</div>',
-        ];
+        $conversationMarkup = $this->buildConversationMarkup($conversation);
+
+
+        if (!empty($conversationMarkup)) {
+            $form['conversation'] = [
+                '#type' => 'markup',
+                '#markup' => $conversationMarkup,
+                '#allowed_tags' => ['div', 'br', 'strong'],
+                '#prefix' => '<div id="conversation-wrapper">',
+                '#suffix' => '</div>',
+            ];
+        }
 
         $form['prompt'] = [
             '#type' => 'textarea',
@@ -109,13 +114,16 @@ class OpenAIForm extends FormBase {
     }
 
     protected function buildConversationMarkup(array $conversation) {
-        $markup = '<div class="conversation">';
-        foreach ($conversation as $message) {
-            if ($message['role'] !== 'system') {
-                $markup .= "<br><strong>" . $message['role'] . ":</strong> " . htmlspecialchars($message['content']);
+        $markup = '';
+        if (!empty($conversation)) {
+            $markup .= '<div class="conversation">';
+            foreach ($conversation as $message) {
+                if ($message['role'] !== 'system') {
+                    $markup .= "<br><strong>" . $message['role'] . ":</strong> " . htmlspecialchars($message['content']);
+                }
             }
+            $markup .= '</div>';
         }
-        $markup .= '</div>';
         return $markup;
     }
 }
