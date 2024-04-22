@@ -1,18 +1,17 @@
 # filename: openai_integration.libraries.yml
 # define libraries for the module.
-# filename: openai_integration.libraries.yml
 styles:
-  version: 1.x
+  version: 1.0.0
   css:
     theme:
       css/styles.css: {}
 
 ajax:
-  version: 1.x
+  version: 1.0
   js:
     js/ajax.js: {}
   dependencies:
     - core/jquery
     - core/drupal
     - core/drupalSettings
-    - core/drupal.ajax
+    - core/drupal.ajax  

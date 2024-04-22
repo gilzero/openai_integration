@@ -1,7 +1,23 @@
-.conversation {
-    background-color: #f4f4f4;
-    border: 1px solid #ddd;
+#conversation-wrapper {
+    max-height: 500px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
     padding: 10px;
     margin-bottom: 20px;
-    white-space: pre-wrap;
+}
+
+.user-message, .assistant-message {
+    padding: 8px;
+    margin-bottom: 2px;
+    border-radius: 4px;
+}
+
+.user-message {
+    background-color: #f4f4f4;
+    text-align: right;
+}
+
+.assistant-message {
+    background-color: #d1e8ff;
+    text-align: left;
 }

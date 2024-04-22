@@ -1,10 +1,18 @@
-# filename: openai_integration.services.yml
-# define services for the module.
-
 services:
+  # Service definition for the OpenAI API client
+  openai_integration.openai_api_client:
+    class: Drupal\openai_integration\Service\OpenAIAPIClient
+    arguments: ['@http_client', '@config.factory', '@logger.factory']
+    tags:
+      - { name: 'openai_client' }
+
+  # Service definition for the OpenAI service
   openai_integration.openai_service:
     class: Drupal\openai_integration\Service\OpenAIService
-    arguments:
-      - '@http_client'
-      - '@session'
-      - '@config.factory'
+    arguments: ['@openai_integration.openai_api_client', '@session', '@logger.factory', '@config.factory']
+
+  # Definition of the logger for the OpenAI module
+  openai_integration.logger:
+    class: Drupal\Core\Logger\LoggerChannel
+    factory: ['@logger.factory', 'get']
+    arguments: ['openai_integration']
