@@ -3,9 +3,16 @@
 
 
 openai_integration.form:
-  path: '/openai'
+  path: '/hi'
   defaults:
     _form: '\Drupal\openai_integration\Form\OpenAIForm'
-    _title: 'OpenAI Form'
+    _title: 'My Clone'
   requirements:
-    _permission: 'access content'
+    _access: 'TRUE'
+openai_integration.settings:
+  path: '/admin/config/services/openai'
+  defaults:
+    _form: '\Drupal\openai_integration\Form\ConfigForm'
+    _title: 'OpenAI Integration Settings'
+  requirements:
+    _permission: 'administer site configuration'
