@@ -46,9 +46,11 @@ class OpenAIForm extends FormBase {
         $form['#attached']['library'][] = 'openai_integration/ajax';
         $form['#attached']['library'][] = 'openai_integration/styles';
 
+        // Modify permission check to handle feedback for anonymous users
         if (!$this->currentUser->hasPermission('submit openai form')) {
-            $this->messenger()->addError($this->t('You do not have permission to access this form.'));
-            return [];
+            $this->messenger()->addWarning($this->t('You do not have permission to access this form.'));
+            // We return an empty form that will show only messages (no input or submit buttons)
+            return $form;
         }
         
         $form['conversation_wrapper'] = [

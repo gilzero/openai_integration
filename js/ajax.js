@@ -5,8 +5,11 @@
             const $promptInput = $('#edit-prompt', context);
             const $submitButton = $form.find('.form-submit');
 
-            this.initializeForm($promptInput, $submitButton);
-            this.setupEventListeners($form, $promptInput, $submitButton);
+            // Check if elements exist before initialization to handle permission-based UI rendering
+            if ($promptInput.length && $submitButton.length) {
+                this.initializeForm($promptInput, $submitButton);
+                this.setupEventListeners($form, $promptInput, $submitButton);
+            }
         },
         initializeForm: function($promptInput, $submitButton) {
             this.toggleSubmitButtonState($promptInput.val().trim(), $submitButton);
@@ -24,7 +27,9 @@
         },
         handleFormSubmit: function(event, $form, $promptInput, $submitButton) {
             event.preventDefault();
-            this.submitForm($form, $promptInput, $submitButton);
+            if ($promptInput.val().trim()) {
+                this.submitForm($form, $promptInput, $submitButton);
+            }
         },
         submitForm: function($form, $promptInput, $submitButton) {
             if (!$promptInput.val().trim()) {
