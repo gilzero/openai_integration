@@ -104,6 +104,26 @@ class ConfigForm extends ConfigFormBase {
     }
 
     /**
+     * Form validation handler.
+     */
+    public function validateForm(array &$form, FormStateInterface $form_state) {
+        $apiKey = $form_state->getValue('openai_api_key');
+        if (empty($apiKey)) {
+            $form_state->setErrorByName('openai_api_key', $this->t('API key is required.'));
+        }
+        
+        $modelName = $form_state->getValue('model_name');
+        if (empty($modelName)) {
+            $form_state->setErrorByName('model_name', $this->t('Model name is required.'));
+        }
+        
+        $systemPrompt = $form_state->getValue('system_prompt');
+        if (strlen($systemPrompt) > 4000) {
+            $form_state->setErrorByName('system_prompt', $this->t('System prompt should not exceed 4000 characters.'));
+        }
+    }
+
+    /**
      * AJAX callback for validating the API key.
      */
     public function validateApiKeyAjax(array &$form, FormStateInterface $form_state) {

@@ -1,24 +1,68 @@
-/* css/styles.css */
+/* filepath: css/styles.css */
+
+/* Style for the conversation wrapper */
 #conversation-wrapper {
-    max-height: 500px;
-    overflow-y: auto;
-    border: 1px solid #ccc;
     padding: 10px;
     margin-bottom: 20px;
+    background-color: #ffffff; /* Maintain white background */
 }
 
-.user-message, .assistant-message {
-    padding: 8px;
-    margin-bottom: 2px;
-    border-radius: 4px;
+/* When there are no messages, hide the conversation wrapper */
+#conversation-wrapper:empty {
+    display: none;
 }
 
+/* General message styling */
+.message {
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    border: 1px solid #e0e0e0; /* Slight grey border for depth */
+    max-width: 80%;
+    word-wrap: break-word;
+}
+
+/* User message styling */
 .user-message {
-    background-color: #f4f4f4;
+    background-color: #000000; /* Change to black for user messages */
+    color: #ffffff; /* White text for contrast */
     text-align: right;
+    float: right;
+    clear: both;
+    border-bottom-right-radius: 0;
 }
 
+/* Assistant message styling */
 .assistant-message {
-    background-color: #d1e8ff;
+    background-color: #f0f0f0; /* Maintain white for assistant messages */
+    color: #000000; /* Black text for contrast */
     text-align: left;
+    float: left;
+    clear: both;
+    border-bottom-left-radius: 0;
 }
+
+/* Clearfix for floated messages */
+#conversation-wrapper:after {
+    content: "";
+    display: table;
+    clear: both;
+}
+
+/* Fix for AJAX progress indicator positioning */
+.ajax-progress-throbber {
+    float: none; /* or you could use 'float: right;' if that fits better with your layout */
+    clear: both;
+    display: block;
+    margin-top: 10px; /* Adjust the margin as needed */
+}
+
+/* Targets the message within the AJAX progress throbber to remove borders */
+.ajax-progress-throbber .message {
+    border: none; /* Removes any border */
+    padding: 0; /* Adjust padding if necessary */
+    background: transparent; /* Ensures no background is applied */
+    color: inherit; /* Makes the text color consistent with other text */
+}
+
+/* Additional styles can be added below */

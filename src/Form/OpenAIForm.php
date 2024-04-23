@@ -2,6 +2,8 @@
 // src/Form/OpenAIForm.php
 namespace Drupal\openai_integration\Form;
 
+use Drupal\Core\Ajax\InvokeCommand;
+use Drupal\Component\Utility\Html;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface; 
@@ -10,6 +12,7 @@ use Drupal\Core\Ajax\HtmlCommand;
 use Drupal\Core\Ajax\AppendCommand;
 use Psr\Log\LoggerInterface;
 use Drupal\openai_integration\Service\OpenAIService;
+use Parsedown;
 
 class OpenAIForm extends FormBase {
 
@@ -34,18 +37,26 @@ class OpenAIForm extends FormBase {
 
     public function buildForm(array $form, FormStateInterface $form_state) {
         $form['#attached']['library'][] = 'openai_integration/ajax';
+        $form['#attached']['library'][] = 'openai_integration/styles';
         
         $form['conversation_wrapper'] = [
             '#type' => 'container',
-            '#attributes' => ['id' => 'conversation-wrapper'],
+            '#attributes' => [
+                'id' => 'conversation-wrapper',
+                'aria-live' => 'polite',
+                'aria-atomic' => 'true',
+            ],
         ];
 
         $form['prompt'] = [
             '#type' => 'textarea',
-            '#title' => $this->t('Ask something...'),
+            '#title' => $this->t('我是陈未名克隆体, 希望我可以帮到你.😊'),
+            '#description' => $this->t('Enter your message or question for the AI assistant.'),
             '#required' => TRUE,
             '#attributes' => [
-                'placeholder' => $this->t('Type your prompt here...'),
+                'placeholder' => $this->t('请输入您的指令'),
+                'required' => 'required',
+                'aria-label' => $this->t('User prompt'),
             ],
         ];
 
@@ -55,7 +66,7 @@ class OpenAIForm extends FormBase {
 
         $form['actions']['submit'] = [
             '#type' => 'submit',
-            '#value' => $this->t('Send'),
+            '#value' => $this->t('发送'),
             '#ajax' => [
                 'callback' => '::promptSubmitAjax',
                 'wrapper' => 'conversation-wrapper',
@@ -63,14 +74,14 @@ class OpenAIForm extends FormBase {
                 'speed' => 'slow',
                 'progress' => [
                     'type' => 'throbber',
-                    'message' => $this->t('Processing...'),
+                    'message' => $this->t('思考中🤔'),
                 ],
             ],
         ];
 
         $form['actions']['clear'] = [
             '#type' => 'submit',
-            '#value' => $this->t('Clear Conversation'),
+            '#value' => $this->t('清除'),
             '#submit' => ['::clearConversation'],
             '#ajax' => [
                 'callback' => '::clearConversationAjax',
@@ -83,8 +94,11 @@ class OpenAIForm extends FormBase {
 
     public function validateForm(array &$form, FormStateInterface $form_state) {
         $prompt = trim($form_state->getValue('prompt'));
+
         if (empty($prompt)) {
-            $form_state->setErrorByName('prompt', $this->t('Your prompt cannot be empty.'));
+            $form_state->setErrorByName('prompt', $this->t('您的指令不能为空.'));
+        } elseif (strlen($prompt) > 4096) {
+            $form_state->setErrorByName('prompt', $this->t('您的指令过长, 请限制在4096个字符以内.'));
         }
     }
 
@@ -108,11 +122,18 @@ class OpenAIForm extends FormBase {
             return $response;
         }
     
-        $userMarkup = '<div class="user-message">' . htmlspecialchars($prompt, ENT_QUOTES, 'UTF-8') . '</div>';
-        $assistantMarkup = '<div class="assistant-message">' . htmlspecialchars($responseText, ENT_QUOTES, 'UTF-8') . '</div>';
+        // Use Parsedown to convert Markdown response to HTML
+        $parser = new Parsedown();
+        $htmlResponse = $parser->text($responseText);
+
+        // Sanitize the prompt to prevent XSS
+        // Since Parsedown's text() method returns safe HTML, you don't need to sanitize $htmlResponse
+        $safePrompt = \Drupal\Component\Utility\Html::escape($prompt);
+        $userMarkup = '<div class="message user-message">' . $safePrompt . '</div>';
+        $assistantMarkup = '<div class="message assistant-message">' . $htmlResponse . '</div>';
     
         // Clear the input area after submitting
-        $response->addCommand(new \Drupal\Core\Ajax\InvokeCommand('#edit-prompt', 'val', ['']));
+        $response->addCommand(new InvokeCommand('#edit-prompt', 'val', ['']));
         
         // Add user and assistant messages to the conversation wrapper
         $response->addCommand(new AppendCommand('#conversation-wrapper', $userMarkup));
@@ -123,7 +144,7 @@ class OpenAIForm extends FormBase {
 
     public function clearConversation(array &$form, FormStateInterface $form_state) {
         $this->openAIService->saveConversationHistory([]); // Clearing the conversation history
-        $this->messenger()->addMessage($this->t('Conversation history cleared.'));
+        $this->messenger()->addMessage($this->t('对话已清除.'));
     }
 
     public function clearConversationAjax(array &$form, FormStateInterface $form_state) {

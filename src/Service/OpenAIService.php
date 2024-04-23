@@ -27,24 +27,41 @@ class OpenAIService {
     }
 
     public function generateResponse($prompt) {
-        $promptCleaned = htmlspecialchars($prompt, ENT_QUOTES, 'UTF-8');
+        $promptCleaned = strip_tags($prompt);
+        $promptCleaned = htmlspecialchars($promptCleaned, ENT_QUOTES, 'UTF-8');
         
         if (strlen($promptCleaned) > self::MAX_PROMPT_LENGTH) {
             $this->messenger->addError('The prompt is too long. Please reduce the length and try again.');
             return null;
         }
-
+    
         $conversationHistory = $this->getConversationHistory();
         $this->addSystemPrompt($conversationHistory);
         $conversationHistory[] = ['role' => 'user', 'content' => $promptCleaned];
-
+    
+        // Truncate conversation history if it exceeds a certain length
+        $maxConversationLength = 10; // Adjust this value based on your requirements
+        $conversationHistory = array_slice($conversationHistory, -$maxConversationLength);
+    
+        $this->saveConversationHistory($conversationHistory);
+    
         $model = $this->configFactory->get('openai_integration.settings')->get('model_name');
         
         try {
-            return $this->processResponse($model, $conversationHistory);
+            $responseData = $this->apiClient->sendRequest('/chat/completions', [
+                'model' => $model,
+                'messages' => $conversationHistory,
+            ]);
+    
+            $responseText = $responseData['choices'][0]['message']['content'] ?? 'No response content available.';
+            $conversationHistory[] = ['role' => 'assistant', 'content' => $responseText];
+            $this->saveConversationHistory($conversationHistory);
+            return $responseText;
         } catch (\Exception $e) {
             $this->handleResponseError($e);
         }
+    
+        return null;
     }
 
     public function getConversationHistory() {
