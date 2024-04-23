@@ -38,6 +38,12 @@ class OpenAIForm extends FormBase {
     public function buildForm(array $form, FormStateInterface $form_state) {
         $form['#attached']['library'][] = 'openai_integration/ajax';
         $form['#attached']['library'][] = 'openai_integration/styles';
+
+        $account = \Drupal::currentUser();
+        if (!$account->hasPermission('submit openai form')) {
+            $this->messenger()->addError($this->t('You do not have permission to access this form.'));
+            return [];
+        }
         
         $form['conversation_wrapper'] = [
             '#type' => 'container',
@@ -156,4 +162,8 @@ class OpenAIForm extends FormBase {
     public function submitForm(array &$form, FormStateInterface $form_state) {
         // No actions needed here since AJAX handles the form submission.
     }
+
+    public function access($account, $return_as_object = FALSE) {
+        return $account->hasPermission('submit openai form');
+      }
 }

@@ -8,7 +8,8 @@ openai_integration.form:
     _form: '\Drupal\openai_integration\Form\OpenAIForm'
     _title: 'My Clone'
   requirements:
-    _permission: 'access openai chatbot'
+    _permission: 'submit openai form'
+    
 openai_integration.settings:
   path: '/admin/config/services/openai'
   defaults:
