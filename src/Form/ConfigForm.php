@@ -89,7 +89,7 @@ class ConfigForm extends ConfigFormBase {
             '#title' => $this->t('System Prompt'),
             '#default_value' => $config->get('system_prompt'),
             '#description' => $this->t('Enter a system prompt or default question for the AI.'),
-            '#rows' => 4,
+            '#rows' => 8,
             '#cols' => 60,
             '#resizable' => 'vertical',
             '#required' => FALSE,
@@ -118,8 +118,8 @@ class ConfigForm extends ConfigFormBase {
         }
         
         $systemPrompt = $form_state->getValue('system_prompt');
-        if (strlen($systemPrompt) > 4000) {
-            $form_state->setErrorByName('system_prompt', $this->t('System prompt should not exceed 4000 characters.'));
+        if (strlen($systemPrompt) > 10000) {
+            $form_state->setErrorByName('system_prompt', $this->t('System prompt should not exceed 10000 characters.'));
         }
     }
 

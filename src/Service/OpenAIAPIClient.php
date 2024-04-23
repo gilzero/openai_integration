@@ -29,8 +29,12 @@ class OpenAIAPIClient implements OpenAIAPIClientInterface {
      */
     public function __construct(ClientInterface $httpClient, ConfigFactoryInterface $configFactory, LoggerChannelFactoryInterface $loggerFactory) {
         $this->httpClient = $httpClient;
-        $this->apiKey = $configFactory->get('openai_integration.settings')->get('openai_api_key');
+        $this->refreshSettings($configFactory);
         $this->logger = $loggerFactory->get('openai_integration');
+    }
+
+    public function refreshSettings(ConfigFactoryInterface $configFactory) {
+        $this->apiKey = $configFactory->get('openai_integration.settings')->get('openai_api_key');
     }
 
     /**
@@ -55,19 +59,29 @@ class OpenAIAPIClient implements OpenAIAPIClientInterface {
             ];
             
             $response = $this->httpClient->request($method, $this->baseUrl . $methodName, $options);
+            if ($response->getStatusCode() !== 200) {
+                throw new \RuntimeException("Unexpected API response status: " . $response->getStatusCode());
+            }            
             $responseBody = json_decode($response->getBody()->getContents(), true);
 
             // Log successful request details
-            $this->logger->info('API request successful', [
-                'method' => $method,
-                'url' => $this->baseUrl . $methodName,
-                'response' => $responseBody  // Consider sanitizing if sensitive data is involved
-            ]);
+            $this->logRequest($method, $this->baseUrl . $methodName, $responseBody);
     
             return $responseBody;
         } catch (GuzzleException $e) {
             return $this->handleException($e, $method, $this->baseUrl . $methodName);
         }
+    }
+
+    protected function logRequest($method, $url, $responseBody) {
+        if (isset($responseBody['sensitive'])) {  // Hypothetical key for sensitive data
+            unset($responseBody['sensitive']);
+        }
+        $this->logger->info('API request successful', [
+                'method' => $method,
+                'url' => $url,
+                'response' => $responseBody
+        ]);
     }
 
     /**
@@ -80,17 +94,23 @@ class OpenAIAPIClient implements OpenAIAPIClientInterface {
      * @throws \RuntimeException When rethrowing the exception with additional context.
      */
     protected function handleException(GuzzleException $e, $method, $url) {
-        // Log specific errors with detailed context
+        $response = $e->getResponse();
+        $statusCode = $response ? $response->getStatusCode() : 0;
+
         $this->logger->error('API request failed', [
             'method' => $method,
             'url' => $url,
             'error' => $e->getMessage(),
-            'code' => $e->getCode()
+            'code' => $statusCode
         ]);
 
-        // Here you can add logic to handle specific scenarios based on status codes or exception types
-        // For example, retry logic, fallback mechanisms, or enhanced user messaging
-        
-        throw new \RuntimeException('Failed to communicate with OpenAI API.', 0, $e);
+        switch ($statusCode) {
+            case 401:
+                throw new UnauthorizedException('Authentication failed', 401, $e);
+            case 429:
+                throw new RateLimitException('Rate limit exceeded', 429, $e);
+            default:
+                throw new \RuntimeException("API Error: {$e->getMessage()}", $statusCode, $e);
+        }
     }
 }

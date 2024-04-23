@@ -6,28 +6,35 @@ use Drupal\Core\Ajax\InvokeCommand;
 use Drupal\Component\Utility\Html;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
-use Symfony\Component\DependencyInjection\ContainerInterface; 
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Ajax\HtmlCommand;
 use Drupal\Core\Ajax\AppendCommand;
 use Psr\Log\LoggerInterface;
 use Drupal\openai_integration\Service\OpenAIService;
 use Parsedown;
+use Drupal\Core\Session\AccountInterface;
 
 class OpenAIForm extends FormBase {
 
     protected $openAIService;
     protected $logger;
+    protected $currentUser;
 
-    public function __construct(OpenAIService $openAIService, LoggerInterface $logger) {
+    const MAX_PROMPT_LENGTH = 4096;
+    const FIELD_PROMPT = 'prompt';
+
+    public function __construct(OpenAIService $openAIService, LoggerInterface $logger, AccountInterface $currentUser) {
         $this->openAIService = $openAIService;
         $this->logger = $logger;
+        $this->currentUser = $currentUser;
     }
 
     public static function create(ContainerInterface $container) {
         return new static(
             $container->get('openai_integration.openai_service'),
-            $container->get('logger.factory')->get('openai_integration')
+            $container->get('logger.factory')->get('openai_integration'),
+            $container->get('current_user')
         );
     }
 
@@ -39,8 +46,7 @@ class OpenAIForm extends FormBase {
         $form['#attached']['library'][] = 'openai_integration/ajax';
         $form['#attached']['library'][] = 'openai_integration/styles';
 
-        $account = \Drupal::currentUser();
-        if (!$account->hasPermission('submit openai form')) {
+        if (!$this->currentUser->hasPermission('submit openai form')) {
             $this->messenger()->addError($this->t('You do not have permission to access this form.'));
             return [];
         }
@@ -54,40 +60,37 @@ class OpenAIForm extends FormBase {
             ],
         ];
 
-        $form['prompt'] = [
+        $form[self::FIELD_PROMPT] = [
             '#type' => 'textarea',
-            '#title' => $this->t('我是陈未名克隆体, 希望我可以帮到你.😊'),
-            '#description' => $this->t('Enter your message or question for the AI assistant.'),
+            '#title' => $this->t('我是未名克隆体, 可以问我任何.😊'),
+            '#description' => $this->t('Enter your message or question.'),
             '#required' => TRUE,
             '#attributes' => [
-                'placeholder' => $this->t('请输入您的指令'),
+                'placeholder' => $this->t('Please type your command'),
                 'required' => 'required',
                 'aria-label' => $this->t('User prompt'),
             ],
         ];
 
+        // Define action buttons
         $form['actions'] = [
-            '#type' => 'actions',
+            '#type' => 'actions'
         ];
 
+        // Submit button
         $form['actions']['submit'] = [
             '#type' => 'submit',
-            '#value' => $this->t('发送'),
+            '#value' => $this->t('Send'),
             '#ajax' => [
                 'callback' => '::promptSubmitAjax',
                 'wrapper' => 'conversation-wrapper',
-                'effect' => 'fade',
-                'speed' => 'slow',
-                'progress' => [
-                    'type' => 'throbber',
-                    'message' => $this->t('思考中🤔'),
-                ],
             ],
         ];
 
+        // Clear button
         $form['actions']['clear'] = [
             '#type' => 'submit',
-            '#value' => $this->t('清除'),
+            '#value' => $this->t('Clear'),
             '#submit' => ['::clearConversation'],
             '#ajax' => [
                 'callback' => '::clearConversationAjax',
@@ -99,58 +102,58 @@ class OpenAIForm extends FormBase {
     }
 
     public function validateForm(array &$form, FormStateInterface $form_state) {
-        $prompt = trim($form_state->getValue('prompt'));
+        $prompt = trim($form_state->getValue(self::FIELD_PROMPT));
 
         if (empty($prompt)) {
-            $form_state->setErrorByName('prompt', $this->t('您的指令不能为空.'));
-        } elseif (strlen($prompt) > 4096) {
-            $form_state->setErrorByName('prompt', $this->t('您的指令过长, 请限制在4096个字符以内.'));
+            $form_state->setErrorByName(self::FIELD_PROMPT, $this->t('The prompt cannot be empty.'));
+        } elseif (strlen($prompt) > self::MAX_PROMPT_LENGTH) {
+            $form_state->setErrorByName(self::FIELD_PROMPT, $this->t('The prompt is too long. Please limit to @max characters.', ['@max' => self::MAX_PROMPT_LENGTH]));
         }
     }
 
     public function promptSubmitAjax(array &$form, FormStateInterface $form_state) {
         $response = new AjaxResponse();
         if ($errors = $form_state->getErrors()) {
-            $renderer = \Drupal::service('renderer');
-            $error_messages = ['#type' => 'status_messages'];
-            $rendered_messages = $renderer->renderRoot($error_messages);
-            $response->addCommand(new HtmlCommand('.form-error-messages', $rendered_messages));
-            return $response;
+            return $this->handleAjaxErrors($form_state, $response);
         }
     
-        $prompt = $form_state->getValue('prompt');
+        $prompt = $form_state->getValue(self::FIELD_PROMPT);
         $responseText = $this->openAIService->generateResponse($prompt);
         
         if ($responseText === null) {
-            // Error handling in case `generateResponse` returns null (e.g., prompt too long)
             $error_message = $this->t('Could not process your request. Please try again.');
             $response->addCommand(new HtmlCommand('.form-error-messages', $error_message));
             return $response;
         }
     
-        // Use Parsedown to convert Markdown response to HTML
+        return $this->appendResponseToConversation($response, $prompt, $responseText);
+    }
+
+    protected function handleAjaxErrors(FormStateInterface $form_state, AjaxResponse $response) {
+        $renderer = \Drupal::service('renderer');
+        $errorMessages = ['#type' => 'status_messages'];
+        $renderedMessages = $renderer->renderRoot($errorMessages);
+        $response->addCommand(new HtmlCommand('.form-error-messages', $renderedMessages));
+        return $response;
+    }
+
+    protected function appendResponseToConversation(AjaxResponse $response, $prompt, $responseText) {
         $parser = new Parsedown();
         $htmlResponse = $parser->text($responseText);
-
-        // Sanitize the prompt to prevent XSS
-        // Since Parsedown's text() method returns safe HTML, you don't need to sanitize $htmlResponse
-        $safePrompt = \Drupal\Component\Utility\Html::escape($prompt);
+        $safePrompt = Html::escape($prompt);
         $userMarkup = '<div class="message user-message">' . $safePrompt . '</div>';
         $assistantMarkup = '<div class="message assistant-message">' . $htmlResponse . '</div>';
-    
-        // Clear the input area after submitting
+
         $response->addCommand(new InvokeCommand('#edit-prompt', 'val', ['']));
-        
-        // Add user and assistant messages to the conversation wrapper
         $response->addCommand(new AppendCommand('#conversation-wrapper', $userMarkup));
         $response->addCommand(new AppendCommand('#conversation-wrapper', $assistantMarkup));
-    
+
         return $response;
     }
 
     public function clearConversation(array &$form, FormStateInterface $form_state) {
-        $this->openAIService->saveConversationHistory([]); // Clearing the conversation history
-        $this->messenger()->addMessage($this->t('对话已清除.'));
+        $this->openAIService->saveConversationHistory([]);
+        $this->messenger()->addMessage($this->t('The conversation has been cleared.'));
     }
 
     public function clearConversationAjax(array &$form, FormStateInterface $form_state) {
@@ -163,7 +166,7 @@ class OpenAIForm extends FormBase {
         // No actions needed here since AJAX handles the form submission.
     }
 
-    public function access($account, $return_as_object = FALSE) {
+    public function access(AccountInterface $account, $return_as_object = FALSE) {
         return $account->hasPermission('submit openai form');
-      }
+    }
 }

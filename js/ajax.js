@@ -1,26 +1,22 @@
 (function ($, Drupal) {
     Drupal.behaviors.openaiIntegrationAjax = {
         attach: function (context, settings) {
-            this.initializeForm(context);
-            this.setupEventListeners(context);
-        },
-        initializeForm: function(context) {
-            var $form = $('#openai_integration_form', context);
-            var $promptInput = $('#edit-prompt', context);
-            this.toggleSubmitButtonState($promptInput.val().trim(), $form.find('.form-submit'));
-        },
-        setupEventListeners: function(context) {
-            var $form = $('#openai_integration_form', context);
-            var $promptInput = $('#edit-prompt', context);
-            var $submitButton = $form.find('.form-submit');
+            const $form = $('#openai_integration_form', context);
+            const $promptInput = $('#edit-prompt', context);
+            const $submitButton = $form.find('.form-submit');
 
-            // Debounce input handler to limit how often we toggle the submit button state
-            var debounceToggleSubmit = Drupal.debounce(() => {
+            this.initializeForm($promptInput, $submitButton);
+            this.setupEventListeners($form, $promptInput, $submitButton);
+        },
+        initializeForm: function($promptInput, $submitButton) {
+            this.toggleSubmitButtonState($promptInput.val().trim(), $submitButton);
+        },
+        setupEventListeners: function($form, $promptInput, $submitButton) {
+            const debounceToggleSubmit = Drupal.debounce(() => {
                 this.toggleSubmitButtonState($promptInput.val().trim(), $submitButton);
-            }, 300);  // Debounce for 300 milliseconds
+            }, 300);
 
             $promptInput.on('input', debounceToggleSubmit);
-
             $form.on('submit', (event) => this.handleFormSubmit(event, $form, $promptInput, $submitButton));
         },
         toggleSubmitButtonState: function(promptValue, $submitButton) {
@@ -28,42 +24,53 @@
         },
         handleFormSubmit: function(event, $form, $promptInput, $submitButton) {
             event.preventDefault();
-
-            var promptValue = $promptInput.val().trim();
-            if (!promptValue) {
-                return; // Exit the function if validation fails
+            this.submitForm($form, $promptInput, $submitButton);
+        },
+        submitForm: function($form, $promptInput, $submitButton) {
+            if (!$promptInput.val().trim()) {
+                return; // Exit if the prompt is empty
             }
+            this.showFeedback('Processing your request...');
 
-            $submitButton.prop('disabled', true);
-            $('#feedback-field').html('<div>Processing your request...</div>');
-            
             $.ajax({
                 url: $form.attr('action'),
                 type: 'POST',
                 data: $form.serialize(),
                 dataType: 'json',
                 success: (response) => this.handleSuccess(response, $promptInput, $submitButton),
-                error: (response) => this.handleError(response, $submitButton)
+                error: (response) => this.handleError(response, $submitButton),
             });
         },
         handleSuccess: function(response, $promptInput, $submitButton) {
-            $('#feedback-field').empty();
-            $('#conversation-wrapper').append('<div class="message user-message">' + $promptInput.val() + '</div>');
-            $('#conversation-wrapper').append('<div class="message assistant-message">' + response.data + '</div>');
-            $('#conversation-wrapper').animate({ scrollTop: $('#conversation-wrapper').prop("scrollHeight")}, 1000);
-            $submitButton.prop('disabled', false);
+            this.clearFeedback();
+            this.appendMessages($promptInput.val(), response.data);
             $promptInput.val(''); // Clear input field after successful submission
+            $submitButton.prop('disabled', false);
         },
         handleError: function(response, $submitButton) {
             let errorMessage = 'Error processing request. Please try again.';
-            if (response.responseJSON && response.responseJSON.message) {
-                errorMessage = response.responseJSON.message; // Display a specific error message if available
-            } else if (response.statusText) {
-                errorMessage += ' Details: ' + response.statusText;
-            }
-        
-            $('#feedback-field').html('<div class="alert alert-danger">' + errorMessage + '</div>');
+            errorMessage += this.formatErrorDetails(response);
+            this.showFeedback(errorMessage, true);
             $submitButton.prop('disabled', false);
+        },
+        showFeedback: function(message, isError = false) {
+            const messageType = isError ? 'alert-danger' : '';
+            $('#feedback-field').html(`<div class="alert ${messageType}">${message}</div>`);
+        },
+        clearFeedback: function() {
+            $('#feedback-field').empty();
+        },
+        appendMessages: function(userMessage, assistantMessage) {
+            const messageBlock = `<div class="message user-message">${userMessage}</div>
+                                  <div class="message assistant-message">${assistantMessage}</div>`;
+            const $conversationWrapper = $('#conversation-wrapper');
+            $conversationWrapper.append(messageBlock);
+            $conversationWrapper.animate({ scrollTop: $conversationWrapper.prop("scrollHeight")}, 1000);
+        },
+        formatErrorDetails: function(response) {
+            return response.responseJSON && response.responseJSON.message 
+                   ? ` Details: ${response.responseJSON.message}` 
+                   : ` Details: ${response.statusText}`;
         }
     };
 })(jQuery, Drupal);

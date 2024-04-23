@@ -1,6 +1,5 @@
 <?php
-// src/Service/OpenAIService.php
-
+// file: src/Service/OpenAIService.php
 namespace Drupal\openai_integration\Service;
 
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
@@ -15,8 +14,10 @@ class OpenAIService {
     protected $logger;
     protected $configFactory;
     protected $messenger;
+    protected $model;  // Declare the model property explicitly.
 
-    const MAX_PROMPT_LENGTH = 4096; // Example limit, specify based on actual API constraints
+    const MAX_PROMPT_LENGTH = 4096;
+    const MAX_CONVERSATION_LENGTH = 10;
 
     public function __construct(OpenAIAPIClient $apiClient, SessionInterface $session, LoggerChannelFactoryInterface $loggerFactory, ConfigFactoryInterface $configFactory, MessengerInterface $messenger) {
         $this->apiClient = $apiClient;
@@ -24,71 +25,55 @@ class OpenAIService {
         $this->logger = $loggerFactory->get('openai_integration');
         $this->configFactory = $configFactory;
         $this->messenger = $messenger;
+        $this->model = $this->configFactory->get('openai_integration.settings')->get('model_name');
     }
 
     public function generateResponse($prompt) {
-        $promptCleaned = strip_tags($prompt);
-        $promptCleaned = htmlspecialchars($promptCleaned, ENT_QUOTES, 'UTF-8');
-        
-        if (strlen($promptCleaned) > self::MAX_PROMPT_LENGTH) {
-            $this->messenger->addError('The prompt is too long. Please reduce the length and try again.');
-            return null;
+        if ($this->validatePrompt($prompt)) {
+            $this->addToConversation('user', $prompt);
+            $this->addSystemPrompt();
+            return $this->fetchResponse();
         }
-    
-        $conversationHistory = $this->getConversationHistory();
-        $this->addSystemPrompt($conversationHistory);
-        $conversationHistory[] = ['role' => 'user', 'content' => $promptCleaned];
-    
-        // Truncate conversation history if it exceeds a certain length
-        $maxConversationLength = 10; // Adjust this value based on your requirements
-        $conversationHistory = array_slice($conversationHistory, -$maxConversationLength);
-    
-        $this->saveConversationHistory($conversationHistory);
-    
-        $model = $this->configFactory->get('openai_integration.settings')->get('model_name');
-        
-        try {
-            $responseData = $this->apiClient->sendRequest('/chat/completions', [
-                'model' => $model,
-                'messages' => $conversationHistory,
-            ]);
-    
-            $responseText = $responseData['choices'][0]['message']['content'] ?? 'No response content available.';
-            $conversationHistory[] = ['role' => 'assistant', 'content' => $responseText];
-            $this->saveConversationHistory($conversationHistory);
-            return $responseText;
-        } catch (\Exception $e) {
-            $this->handleResponseError($e);
-        }
-    
         return null;
     }
 
-    public function getConversationHistory() {
-        return $this->session->get('conversation_history', []);
+    private function validatePrompt(&$prompt) {
+        $prompt = htmlspecialchars(strip_tags($prompt), ENT_QUOTES, 'UTF-8');
+        if (strlen($prompt) > self::MAX_PROMPT_LENGTH) {
+            $this->messenger->addError('The prompt is too long. Please reduce the length and try again.');
+            return false;
+        }
+        return true;
     }
 
-    public function saveConversationHistory(array $history) {
-        $this->session->set('conversation_history', $history);
+    private function addToConversation($role, $content) {
+        $conversation = $this->getConversationHistory();
+        $conversation[] = ['role' => $role, 'content' => $content];
+        $conversation = array_slice($conversation, -self::MAX_CONVERSATION_LENGTH);
+        $this->saveConversationHistory($conversation);
     }
 
-    private function addSystemPrompt(&$conversationHistory) {
+    private function fetchResponse() {
+        try {
+            $conversation = $this->getConversationHistory();
+            $response = $this->apiClient->sendRequest('/chat/completions', [
+                'model' => $this->model,
+                'messages' => $conversation,
+            ]);
+            $responseContent = $response['choices'][0]['message']['content'] ?? 'No response content available.';
+            $this->addToConversation('assistant', $responseContent);
+            return $responseContent;
+        } catch (\Exception $e) {
+            $this->handleResponseError($e);
+        }
+        return null;
+    }
+
+    private function addSystemPrompt() {
         $systemPrompt = $this->configFactory->get('openai_integration.settings')->get('system_prompt');
         if (!empty($systemPrompt)) {
-            $conversationHistory[] = ['role' => 'system', 'content' => $systemPrompt];
+            $this->addToConversation('system', $systemPrompt);
         }
-    }
-
-    private function processResponse($model, $conversationHistory) {
-        $responseData = $this->apiClient->sendRequest('/chat/completions', [
-            'model' => $model,
-            'messages' => $conversationHistory,
-        ]);
-
-        $responseText = $responseData['choices'][0]['message']['content'] ?? 'No response content available.';
-        $conversationHistory[] = ['role' => 'assistant', 'content' => $responseText];
-        $this->saveConversationHistory($conversationHistory);
-        return $responseText;
     }
 
     private function handleResponseError(\Exception $e) {
@@ -96,15 +81,20 @@ class OpenAIService {
         $this->messenger->addError('Sorry, an error occurred while processing your request. Please try again.');
     }
 
-    /**
-     * Provides a list of available models.
-     * This should query OpenAI to get the actual models but is hardcoded as an example.
-     */
+    public function getConversationHistory() {
+        return $this->session->get('conversation_history', []);
+    }
+
+    private function saveConversationHistory(array $history) {
+        $this->session->set('conversation_history', $history);
+    }
+
     public function getAvailableModels() {
+        // This method would ideally query OpenAI or cache the information.
         return [
             'gpt-3.5-turbo' => 'GPT 3.5',
             'gpt-4' => 'GPT 4',
-            'gpt-4-turbo' => 'GPT 4 Turbo'
+            'gpt-4-turbo' => 'GPT 4 Turbo',
         ];
     }
 }
